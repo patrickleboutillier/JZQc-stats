@@ -1,12 +1,9 @@
 from zwift import Client
-import datetime, sys, pprint
+import creds, datetime, sys, pprint
 pp = pprint.PrettyPrinter(indent=4)
 
 when = sys.argv[1]
-
-username = 'patrick.leboutillier@gmail.com'
-password = '95cicciiA!'
-client = Client(username, password)
+client = Client(creds.username, creds.password)
 jzqc_club_id = "db29559b-e475-47ac-84ef-8ac6a285f4f9"
 
 

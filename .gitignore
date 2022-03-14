@@ -2,3 +2,4 @@ creds.py
 __pycache__/*
 stuff/
 data/*.csv
+JZQC.csv

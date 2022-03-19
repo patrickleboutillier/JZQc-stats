@@ -94,7 +94,7 @@ def verbose_report():
     print("# ", jzqc_total_activity)
 
 def csv_report():
-    print("{}\t{}\t{}\t{}\t{}\t{}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.0f}".format(when, len(jzqc_members.keys()), jzqc_total_activity['active_members'], jzqc_total_activity['activities'],
+    print("{},{},{},{},{},{},{:.0f},{:.0f},{:.0f},{:.0f}".format(when, len(jzqc_members.keys()), jzqc_total_activity['active_members'], jzqc_total_activity['activities'],
         jzqc_total_activity['cycling'], jzqc_total_activity['running'], jzqc_total_activity['duration'], jzqc_total_activity['calories'],
         jzqc_total_activity['distance'], jzqc_total_activity['elevation']))
 

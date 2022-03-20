@@ -1,8 +1,17 @@
 from zwift import Client
-import creds, datetime, sys, pprint
+import creds, datetime, sys, pprint, argparse
 pp = pprint.PrettyPrinter(indent=4)
 
-when = sys.argv[1]
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", "--verbose", help="produce verbose report", action="store_true")
+parser.add_argument("-f", "--filter", help="filter", type=str, action='append')
+parser.add_argument("date", type=str,
+                    help="date")
+args = parser.parse_args()
+
+when = args.date
+activity_filter = args.filter
 client = Client(creds.username, creds.password)
 jzqc_club_id = "db29559b-e475-47ac-84ef-8ac6a285f4f9"
 
@@ -28,30 +37,44 @@ def get_jzcq_members(profile):
 
 
 def get_jzqc_member_activities(client, id, jzqc_members):
-    for a in client.get_activity(id).list(0, 10):
+    for a in client.get_activity(id).list(0, 20):
         start = utc_to_local(a['startDate'])
-        if start.startswith(when):
-            activity = {}
-            activity['id'] = a['id']
-            activity['sport'] = a['sport'].lower()
-            activity['calories'] = a['calories']
-            activity['distance'] = a['distanceInMeters'] / 1000.0    
-            activity['elevation'] = a['totalElevation']
-            dur = a['duration'].split(":")  # in hours, i.e. 1:26
-            mins = 0
-            if len(dur) == 1:
-                if dur[0] == '':
-                    dur[0] = 0
-                mins = int(dur[0])
-            else:
-                if dur[1] == '':
-                    dur[1] = 0
-                mins = int(dur[0]) * 60 + int(dur[1])
-            activity['duration'] = mins / 60.0     
+        name = a['name']
 
-            if activity['distance'] != 0 and activity['duration'] != 0:
-                jzqc_members[id]['active'] = True
-                jzqc_members[id]['activities'][a['id']] = activity
+        if not start.startswith(when):
+            continue
+
+        keep = True
+        if activity_filter is not None:
+            keep = False
+            for f in activity_filter:
+                if f.lower() in name.lower():
+                    keep = True
+                    break
+        if not keep:
+            continue
+
+        activity = {}
+        activity['id'] = a['id']
+        activity['sport'] = a['sport'].lower()
+        activity['calories'] = a['calories']
+        activity['distance'] = a['distanceInMeters'] / 1000.0    
+        activity['elevation'] = a['totalElevation']
+        dur = a['duration'].split(":")  # in hours, i.e. 1:26
+        mins = 0
+        if len(dur) == 1:
+            if dur[0] == '':
+                dur[0] = 0
+            mins = int(dur[0])
+        else:
+            if dur[1] == '':
+                dur[1] = 0
+            mins = int(dur[0]) * 60 + int(dur[1])
+        activity['duration'] = mins / 60.0     
+
+        if activity['distance'] != 0 and activity['duration'] != 0:
+            jzqc_members[id]['active'] = True
+            jzqc_members[id]['activities'][a['id']] = activity
 
 
 profile = client.get_profile()
@@ -81,7 +104,10 @@ for mid in jzqc_members.keys():
             jzqc_total_activity['avg_distance'] = jzqc_total_activity['distance'] / jzqc_total_activity['activities'] 
 
 def verbose_report():
-    print("Rapport quotidien pour la date du {}:".format(when))
+    filter = ""
+    if activity_filter is not None:
+        filter = " (filtre '/({})/' appliqué sur les activités)')".format("|".join(activity_filter))
+    print("Rapport quotidien pour la date du {}{}:".format(when, filter))
     print("- Il y a {} membres dans le club Zwift JZQc".format(len(jzqc_members.keys())))
     print("- {} membres JZQC ont fait un total de {} sorties ({} vélo, {} course)".format(jzqc_total_activity['active_members'], 
         jzqc_total_activity['activities'], jzqc_total_activity['cycling'], jzqc_total_activity['running']))
@@ -89,7 +115,7 @@ def verbose_report():
         jzqc_total_activity['duration'], jzqc_total_activity['calories']))
     print("- Ils ont parcourus au total {:.0f} kilomètres et grimpé au total {:.0f} mètres".format(
         jzqc_total_activity['distance'], jzqc_total_activity['elevation']))
-    print("- La sortie moyenne avait une distance {:.0f} kilomètres avec une durée de {:.0f} heures".format(
+    print("- La sortie moyenne avait une distance {:.0f} kilomètres avec une durée moyenne de {:.0f} heures".format(
         jzqc_total_activity['avg_distance'], jzqc_total_activity['avg_duration']))
     print("# ", jzqc_total_activity)
 
@@ -99,4 +125,7 @@ def csv_report():
         jzqc_total_activity['distance'], jzqc_total_activity['elevation']))
 
 
-csv_report()
+if args.verbose:
+    verbose_report()
+else:
+    csv_report()

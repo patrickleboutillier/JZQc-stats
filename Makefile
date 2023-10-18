@@ -5,5 +5,5 @@ fetch:
 
 csv:
 	rm -f data/JZQC.csv
-	cat data/header data/*.csv > JZQC.csv
+	cat data/header data/*.csv " | grep -v '^#' > JZQC.csv
 	cp JZQC.csv /mnt/c/Users/patrickl/Downloads/

@@ -1,5 +1,5 @@
 #!/bin/bash
 
-DATE=$(date -d yesterday +"%Y-%m-%d")
+DATE=$1
 echo $DATE
-python get_jzqc_stats.py $DATE "$@" > data/$DATE.csv
+python get_jzqc_stats.py $DATE > data/$DATE.csv

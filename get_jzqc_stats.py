@@ -1,18 +1,16 @@
 from zwift import Client
-import creds, datetime, sys, pprint, argparse, copy
-pp = pprint.PrettyPrinter(indent=4)
+from multiprocessing import Pool, current_process
+import creds, datetime, argparse, copy
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("-v", "--verbose", help="produce verbose report", action="store_true")
-parser.add_argument("-f", "--filter", help="filter", type=str, action='append')
-parser.add_argument("date", type=str,
-                    help="date")
+parser.add_argument("date", type=str, help="date")
 args = parser.parse_args()
 
+nb_procs = 4
 when = args.date
-activity_filter = args.filter
-client = Client(creds.username, creds.password)
+clients = {}
+clients['main'] = Client(creds.username, creds.password)
 jzqc_club_id = "db29559b-e475-47ac-84ef-8ac6a285f4f9"
 total = 'Total JZQc'
 
@@ -37,8 +35,18 @@ def get_jzcq_members(profile):
     return members
 
 
-def get_jzqc_member_activities(client, id, jzqc_members, jzqc_events):
-    for a in client.get_activity(id).list(0, 20):
+def get_jzqc_member_activities(id):
+    global clients
+    pid = current_process().pid
+    if pid not in clients:
+        clients[pid] = Client(creds.username, creds.password)
+    client = clients[pid]
+    activities = {}
+    activities['active_in'] = {}
+    activities['activities'] = {}
+    events = {}
+    zas = client.get_activity(id).list(0, 20)
+    for a in zas:
         start = utc_to_local(a['startDate'])
         event = a['name']
 
@@ -46,17 +54,7 @@ def get_jzqc_member_activities(client, id, jzqc_members, jzqc_events):
             continue
 
         if "jzqc" in event.lower():
-            jzqc_events[event] = {}
-
-        keep = True
-        if activity_filter is not None:
-            keep = False
-            for f in activity_filter:
-                if f.lower() in event.lower():
-                    keep = True
-                    break
-        if not keep:
-            continue
+            events[event] = {}
 
         activity = {}
         activity['id'] = a['id']
@@ -78,12 +76,13 @@ def get_jzqc_member_activities(client, id, jzqc_members, jzqc_events):
         activity['duration'] = mins / 60.0     
 
         if activity['distance'] != 0 and activity['duration'] != 0:
-            jzqc_members[id]['active_in'][total] = True
-            jzqc_members[id]['active_in'][event] = True
-            jzqc_members[id]['activities'][a['id']] = activity
+            activities['active_in'][total] = True
+            activities['active_in'][event] = True
+            activities['activities'][a['id']] = activity
+    return id, events, activities
 
 
-profile = client.get_profile()
+profile = clients['main'].get_profile()
 jzqc_members = get_jzcq_members(profile)
 jzqc_events = { total: True }
 event_template = { 'event': None, 'date': when, 'active_members': 0, 
@@ -91,8 +90,15 @@ event_template = { 'event': None, 'date': when, 'active_members': 0,
 
 
 # Compile activity for each JZQC member
-for id in jzqc_members:
-    get_jzqc_member_activities(client, id, jzqc_members, jzqc_events)   
+with Pool(nb_procs) as p:
+    results = p.map(get_jzqc_member_activities, jzqc_members)
+
+for id, events, activities in results:
+    for e in events.keys():
+        if e not in jzqc_events:
+            jzqc_events[e] = events[e]
+    jzqc_members[id]['active_in'] = activities['active_in']
+    jzqc_members[id]['activities'] = activities['activities']
 
 jzqc_event_activity = {}
 for event in jzqc_events:
@@ -121,10 +127,7 @@ for mid in jzqc_members.keys():
 
 
 def verbose_report():
-    filter = ""
-    if activity_filter is not None:
-        filter = " (filtre '/({})/' appliqué sur les activités)')".format("|".join(activity_filter))
-    print("# Rapport quotidien pour la date du {}{}:".format(when, filter))
+    print("# Rapport quotidien pour la date du {}:".format(when))
     print("# - Il y a {} membres dans le club Zwift JZQc".format(len(jzqc_members.keys())))
     for event in jzqc_events:
         if jzqc_event_activity[event]['active_members'] >= 5:
@@ -149,8 +152,5 @@ def csv_report():
         jzqc_event_activity[total]['distance'], jzqc_event_activity[total]['elevation']))
 
 
-if args.verbose:
-    verbose_report()
-else:
-    csv_report()
-    verbose_report()
+csv_report()
+verbose_report()
